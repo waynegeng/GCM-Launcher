@@ -1,0 +1,11 @@
+{
+  "name": "GCM-Launcher",
+  "author": "GCM-Decky contributors",
+  "flags": [],
+  "api_version": 2,
+  "publish": {
+    "tags": ["gcm", "trainer", "proton", "launcher"],
+    "description": "Install and launch the official Game Cheats Manager Windows build through Proton from your Steam library.",
+    "image": ""
+  }
+}

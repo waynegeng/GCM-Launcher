@@ -1,0 +1,22 @@
+Game Cheats Manager for SteamOS (GCM-Decky)
+===========================================
+
+This project is an independent Linux/SteamOS development line based on the
+upstream project:
+
+    Game Cheats Manager
+    Copyright (C) dyang886 and Game Cheats Manager contributors
+    https://github.com/dyang886/Game-Cheats-Manager
+
+Baseline used for the Phase 1 porting plan:
+
+    Repository:  https://github.com/dyang886/Game-Cheats-Manager
+    Branch:      main
+    Commit:      2483cd6e03538f6bc6a3ef9673e78bc6414d1fbb
+    App version: 2.5.1-beta.1
+
+This project is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, version 3 of the License, or (at your option) any later version.
+See the LICENSE file for details.
+
