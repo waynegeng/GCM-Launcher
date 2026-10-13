@@ -89,6 +89,8 @@ function FaTrash (props) {
   return GenIcon({"attr":{"viewBox":"0 0 512 512"},"child":[{"tag":"path","attr":{"d":"M216 0h80c13.3 0 24 10.7 24 24v168h87.7c17.8 0 26.7 21.5 14.1 34.1L269.7 378.3c-7.5 7.5-19.8 7.5-27.3 0L90.1 226.1c-12.6-12.6-3.7-34.1 14.1-34.1H192V24c0-13.3 10.7-24 24-24zm296 376v112c0 13.3-10.7 24-24 24H24c-13.3 0-24-10.7-24-24V376c0-13.3 10.7-24 24-24h146.7l49 49c20.1 20.1 52.5 20.1 72.6 0l49-49H488c13.3 0 24 10.7 24 24zm-124 88c0-11-9-20-20-20s-20 9-20 20 9 20 20 20 20-9 20-20zm64 0c0-11-9-20-20-20s-20 9-20 20 9 20 20 20 20-9 20-20z"},"child":[]}]})(props);
 }
 
+const title = "GCM 启动器";
+const errorMessage = (summary, error) => `${summary}\n原始错误：${String(error)}`;
 const fetchStatus = callable("status");
 const installGCM = callable("install");
 const updateGCM = callable("update");
@@ -102,10 +104,14 @@ function Content() {
     const refresh = async () => {
         setBusy(true);
         try {
-            setStatus(await fetchStatus());
+            const result = await fetchStatus();
+            if (result.backend_error) {
+                throw new Error(result.backend_error);
+            }
+            setStatus(result);
         }
         catch (error) {
-            toaster.toast({ title: "GCM Launcher", body: String(error) });
+            toaster.toast({ title, body: errorMessage("获取状态失败。", error) });
         }
         finally {
             setBusy(false);
@@ -114,14 +120,14 @@ function Content() {
     SP_REACT.useEffect(() => {
         refresh();
     }, []);
-    const run = async (label, operation) => {
+    const run = async (successMessage, failureMessage, operation) => {
         setBusy(true);
         try {
             await operation();
-            toaster.toast({ title: "GCM Launcher", body: label });
+            toaster.toast({ title, body: successMessage });
         }
         catch (error) {
-            toaster.toast({ title: "GCM Launcher", body: String(error) });
+            toaster.toast({ title, body: errorMessage(failureMessage, error) });
         }
         finally {
             setBusy(false);
@@ -131,19 +137,19 @@ function Content() {
     const installed = status?.installed ?? false;
     const shortcut = status?.shortcut ?? false;
     const hasProton = (status?.proton_options.length ?? 0) > 0;
-    return (SP_JSX.jsxs(DFL.PanelSection, { title: "GCM Launcher", children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { color: "#b8b8b8", marginBottom: "8px" }, children: status
+    return (SP_JSX.jsxs(DFL.PanelSection, { title: title, children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { color: "#b8b8b8", marginBottom: "8px" }, children: status
                         ? installed
-                            ? `Installed: ${status.version || "unknown"}`
-                            : "Official GCM is not installed yet."
+                            ? `已安装：${status.version || "版本未知"}`
+                            : "尚未安装官方 GCM。"
                         : busy
-                            ? "Loading status…"
-                            : "Status unavailable." }) }), !installed && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy || !hasProton, onClick: () => run("GCM installed", () => installGCM()), children: [SP_JSX.jsx(FaDownload, {}), " Install official GCM"] }) })), installed && (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy, onClick: () => run("GCM updated", () => updateGCM()), children: [SP_JSX.jsx(FaSyncAlt, {}), " Check for updates / update"] }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: busy || shortcut, onClick: () => run("Steam shortcut created. Restart Steam to see it.", () => createShortcut()), children: shortcut ? "Steam shortcut exists" : "Create Steam shortcut" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy || !shortcut, onClick: () => run("Shortcut removed", () => deleteShortcut()), children: [SP_JSX.jsx(FaTrash, {}), " Remove Steam shortcut"] }) })] })), SP_JSX.jsxs(DFL.PanelSection, { title: "Proton", children: [status?.proton_options.map((option) => (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy || status.proton_path === option.root, onClick: () => run(`Proton set to ${option.display}`, () => chooseProton(option.root)), children: [status.proton_path === option.root ? "✓ " : "", option.display] }) }, option.root))), !hasProton && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { color: "#b8b8b8" }, children: "No Proton installation detected." }) }))] }), installed && status && (SP_JSX.jsxs(DFL.PanelSection, { title: "Trainer side-loading", children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { color: "#b8b8b8", overflowWrap: "anywhere" }, children: status.trainer_dir }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { color: "#b8b8b8" }, children: ["Copy trainers to ", status.export_dir, " with clean paths, then point CheatDeck at the .exe there."] }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy, onClick: () => run("Trainers synced", () => syncTrainers()), children: [SP_JSX.jsx(FaDownload, {}), " Sync trainers to ~/GCM-Trainers"] }) })] })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy, onClick: () => refresh(), children: [SP_JSX.jsx(FaGamepad, {}), " Refresh status"] }) })] }));
+                            ? "正在获取状态…"
+                            : "暂时无法获取状态。" }) }), !installed && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy || !hasProton, onClick: () => run("GCM 安装完成。", "安装 GCM 失败。", () => installGCM()), children: [SP_JSX.jsx(FaDownload, {}), " \u5B89\u88C5\u5B98\u65B9 GCM"] }) })), installed && (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy, onClick: () => run("GCM 更新完成。", "检查并更新 GCM 失败。", () => updateGCM()), children: [SP_JSX.jsx(FaSyncAlt, {}), " \u68C0\u67E5\u5E76\u66F4\u65B0"] }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: busy || shortcut, onClick: () => run("Steam 快捷方式已创建。重启 Steam 后即可在游戏库中看到。", "创建 Steam 快捷方式失败。", () => createShortcut()), children: shortcut ? "Steam 快捷方式已存在" : "创建 Steam 快捷方式" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy || !shortcut, onClick: () => run("Steam 快捷方式已移除。", "移除 Steam 快捷方式失败。", () => deleteShortcut()), children: [SP_JSX.jsx(FaTrash, {}), " \u79FB\u9664 Steam \u5FEB\u6377\u65B9\u5F0F"] }) })] })), SP_JSX.jsxs(DFL.PanelSection, { title: "Proton \u7248\u672C", children: [status?.proton_options.map((option) => (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy || status.proton_path === option.root, onClick: () => run(`已选择 ${option.display}。`, "选择 Proton 失败。", () => chooseProton(option.root)), children: [status.proton_path === option.root ? "✓ " : "", option.display] }) }, option.root))), !hasProton && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { color: "#b8b8b8" }, children: "\u672A\u68C0\u6D4B\u5230\u5DF2\u5B89\u88C5\u7684 Proton\u3002" }) }))] }), installed && status && (SP_JSX.jsxs(DFL.PanelSection, { title: "\u4FEE\u6539\u5668\u540C\u6B65", children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { color: "#b8b8b8" }, children: [SP_JSX.jsx("div", { children: "\u4FEE\u6539\u5668\u539F\u59CB\u76EE\u5F55" }), SP_JSX.jsx("div", { style: { overflowWrap: "anywhere" }, children: status.trainer_dir })] }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { color: "#b8b8b8", overflowWrap: "anywhere" }, children: ["\u70B9\u51FB\u4E0B\u65B9\u6309\u94AE\uFF0C\u5C06\u4FEE\u6539\u5668\u540C\u6B65\u5230 ", status.export_dir, "\uFF0C\u518D\u5728 CheatDeck \u4E2D\u9009\u62E9\u5BF9\u5E94\u7684 Trainer.exe\u3002\u540C\u6B65\u540E\u7684\u6E38\u620F\u76EE\u5F55\u540D\u4E0D\u542B\u4E2D\u6587\u6216\u5355\u5F15\u53F7\uFF0C\u4FBF\u4E8E CheatDeck \u4F7F\u7528\u3002"] }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy, onClick: () => run("修改器同步完成。", "同步修改器失败。", () => syncTrainers()), children: [SP_JSX.jsx(FaDownload, {}), " \u540C\u6B65\u4FEE\u6539\u5668"] }) })] })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", disabled: busy, onClick: () => refresh(), children: [SP_JSX.jsx(FaGamepad, {}), " \u5237\u65B0\u72B6\u6001"] }) })] }));
 }
 var index = definePlugin(() => {
     console.log("GCM Launcher frontend loaded");
     return {
         name: "GCM Launcher",
-        titleView: SP_JSX.jsx("div", { className: DFL.staticClasses.Title, children: "GCM Launcher" }),
+        titleView: SP_JSX.jsx("div", { className: DFL.staticClasses.Title, children: title }),
         content: SP_JSX.jsx(Content, {}),
         icon: SP_JSX.jsx(FaGamepad, {}),
         onDismount() {
