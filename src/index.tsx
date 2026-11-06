@@ -22,7 +22,12 @@ type Status = {
   export_dir: string;
   log_file: string;
   home: string;
+  backend_error?: string;
 };
+
+const title = "GCM 启动器";
+const errorMessage = (summary: string, error: unknown) =>
+  `${summary}\n原始错误：${String(error)}`;
 
 const fetchStatus = callable<[], Status>("status");
 const installGCM = callable<[], { version: string; exe: string }>("install");
@@ -41,9 +46,13 @@ function Content() {
   const refresh = async () => {
     setBusy(true);
     try {
-      setStatus(await fetchStatus());
+      const result = await fetchStatus();
+      if (result.backend_error) {
+        throw new Error(result.backend_error);
+      }
+      setStatus(result);
     } catch (error) {
-      toaster.toast({ title: "GCM Launcher", body: String(error) });
+      toaster.toast({ title, body: errorMessage("获取状态失败。", error) });
     } finally {
       setBusy(false);
     }
@@ -53,13 +62,17 @@ function Content() {
     refresh();
   }, []);
 
-  const run = async (label: string, operation: () => Promise<unknown>) => {
+  const run = async (
+    successMessage: string,
+    failureMessage: string,
+    operation: () => Promise<unknown>
+  ) => {
     setBusy(true);
     try {
       await operation();
-      toaster.toast({ title: "GCM Launcher", body: label });
+      toaster.toast({ title, body: successMessage });
     } catch (error) {
-      toaster.toast({ title: "GCM Launcher", body: String(error) });
+      toaster.toast({ title, body: errorMessage(failureMessage, error) });
     } finally {
       setBusy(false);
       await refresh();
@@ -71,16 +84,16 @@ function Content() {
   const hasProton = (status?.proton_options.length ?? 0) > 0;
 
   return (
-    <PanelSection title="GCM Launcher">
+    <PanelSection title={title}>
       <PanelSectionRow>
         <div style={{ color: "#b8b8b8", marginBottom: "8px" }}>
           {status
             ? installed
-              ? `Installed: ${status.version || "unknown"}`
-              : "Official GCM is not installed yet."
+              ? `已安装：${status.version || "版本未知"}`
+              : "尚未安装官方 GCM。"
             : busy
-              ? "Loading status…"
-              : "Status unavailable."}
+              ? "正在获取状态…"
+              : "暂时无法获取状态。"}
         </div>
       </PanelSectionRow>
 
@@ -89,9 +102,9 @@ function Content() {
           <ButtonItem
             layout="below"
             disabled={busy || !hasProton}
-            onClick={() => run("GCM installed", () => installGCM())}
+            onClick={() => run("GCM 安装完成。", "安装 GCM 失败。", () => installGCM())}
           >
-            <FaDownload /> Install official GCM
+            <FaDownload /> 安装官方 GCM
           </ButtonItem>
         </PanelSectionRow>
       )}
@@ -99,8 +112,12 @@ function Content() {
       {installed && (
         <>
           <PanelSectionRow>
-            <ButtonItem layout="below" disabled={busy} onClick={() => run("GCM updated", () => updateGCM())}>
-              <FaSyncAlt /> Check for updates / update
+            <ButtonItem
+              layout="below"
+              disabled={busy}
+              onClick={() => run("GCM 更新完成。", "检查并更新 GCM 失败。", () => updateGCM())}
+            >
+              <FaSyncAlt /> 检查并更新
             </ButtonItem>
           </PanelSectionRow>
           <PanelSectionRow>
@@ -108,28 +125,42 @@ function Content() {
               layout="below"
               disabled={busy || shortcut}
               onClick={() =>
-                run("Steam shortcut created. Restart Steam to see it.", () => createShortcut())
+                run(
+                  "Steam 快捷方式已创建。重启 Steam 后即可在游戏库中看到。",
+                  "创建 Steam 快捷方式失败。",
+                  () => createShortcut()
+                )
               }
             >
-              {shortcut ? "Steam shortcut exists" : "Create Steam shortcut"}
+              {shortcut ? "Steam 快捷方式已存在" : "创建 Steam 快捷方式"}
             </ButtonItem>
           </PanelSectionRow>
           <PanelSectionRow>
-            <ButtonItem layout="below" disabled={busy || !shortcut} onClick={() => run("Shortcut removed", () => deleteShortcut())}>
-              <FaTrash /> Remove Steam shortcut
+            <ButtonItem
+              layout="below"
+              disabled={busy || !shortcut}
+              onClick={() =>
+                run("Steam 快捷方式已移除。", "移除 Steam 快捷方式失败。", () => deleteShortcut())
+              }
+            >
+              <FaTrash /> 移除 Steam 快捷方式
             </ButtonItem>
           </PanelSectionRow>
         </>
       )}
 
-      <PanelSection title="Proton">
+      <PanelSection title="Proton 版本">
         {status?.proton_options.map((option) => (
           <PanelSectionRow key={option.root}>
             <ButtonItem
               layout="below"
               disabled={busy || status.proton_path === option.root}
               onClick={() =>
-                run(`Proton set to ${option.display}`, () => chooseProton(option.root))
+                run(
+                  `已选择 ${option.display}。`,
+                  "选择 Proton 失败。",
+                  () => chooseProton(option.root)
+                )
               }
             >
               {status.proton_path === option.root ? "✓ " : ""}
@@ -139,28 +170,32 @@ function Content() {
         ))}
         {!hasProton && (
           <PanelSectionRow>
-            <div style={{ color: "#b8b8b8" }}>No Proton installation detected.</div>
+            <div style={{ color: "#b8b8b8" }}>未检测到已安装的 Proton。</div>
           </PanelSectionRow>
         )}
       </PanelSection>
 
       {installed && status && (
-        <PanelSection title="Trainer side-loading">
-          <PanelSectionRow>
-            <div style={{ color: "#b8b8b8", overflowWrap: "anywhere" }}>{status.trainer_dir}</div>
-          </PanelSectionRow>
+        <PanelSection title="修改器同步">
           <PanelSectionRow>
             <div style={{ color: "#b8b8b8" }}>
-              Copy trainers to {status.export_dir} with clean paths, then point CheatDeck at the .exe there.
+              <div>修改器原始目录</div>
+              <div style={{ overflowWrap: "anywhere" }}>{status.trainer_dir}</div>
+            </div>
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <div style={{ color: "#b8b8b8", overflowWrap: "anywhere" }}>
+              点击下方按钮，将修改器同步到 {status.export_dir}，再在 CheatDeck 中选择对应的
+              Trainer.exe。同步后的游戏目录名不含中文或单引号，便于 CheatDeck 使用。
             </div>
           </PanelSectionRow>
           <PanelSectionRow>
             <ButtonItem
               layout="below"
               disabled={busy}
-              onClick={() => run("Trainers synced", () => syncTrainers())}
+              onClick={() => run("修改器同步完成。", "同步修改器失败。", () => syncTrainers())}
             >
-              <FaDownload /> Sync trainers to ~/GCM-Trainers
+              <FaDownload /> 同步修改器
             </ButtonItem>
           </PanelSectionRow>
         </PanelSection>
@@ -168,7 +203,7 @@ function Content() {
 
       <PanelSectionRow>
         <ButtonItem layout="below" disabled={busy} onClick={() => refresh()}>
-          <FaGamepad /> Refresh status
+          <FaGamepad /> 刷新状态
         </ButtonItem>
       </PanelSectionRow>
     </PanelSection>
@@ -179,7 +214,7 @@ export default definePlugin(() => {
   console.log("GCM Launcher frontend loaded");
   return {
     name: "GCM Launcher",
-    titleView: <div className={staticClasses.Title}>GCM Launcher</div>,
+    titleView: <div className={staticClasses.Title}>{title}</div>,
     content: <Content />,
     icon: <FaGamepad />,
     onDismount() {
